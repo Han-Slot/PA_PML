@@ -1,0 +1,81 @@
+---
+title: "Programming Assignment PML"
+author: "Johan Slot"
+date: "24 mei 2015"
+output: html_document
+---
+
+# Introduction and background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this report we use data from **barbell lift** exercises performed by 6 participants. Data collected from accelerometers on the belt, forearm, arm, and dumbell of the 6 participants. The goal is to create a prediction model to assess the manner in which these participants did the exercise and, in addition,  use the prediction model to predict 20 different test cases. More information is available from the website: **http://groupware.les.inf.puc-rio.br/har**.  
+
+First, we read in both the raw training - and testing data sets and list their dimensions
+
+```{r}
+TrainRaw <- read.csv(paste("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", sep=""))
+TestRaw <- read.csv(paste("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", sep=""))
+dim(TrainRaw); dim(TestRaw)
+```
+
+Upon inspection of the training set we find that it contains a number of irrelevant variables (columns) and quite a number of elements that contain an NA or even nothing at all. For instance, the first 7 columns of the training set with names
+
+```{r, echo=FALSE}
+names(TrainRaw[,1:7])
+```
+
+contain data such as names of participants, time stamps etc, and are therefore not relevant as predictors. These columns we remove from the training set. Similarly, we remove all columns that contain either NA's or empty entries.
+
+```{r}
+TrainClean <- TrainRaw[,-(1:7)]
+TrainClean <- TrainClean[, !is.na(TrainClean[125,])]
+TrainClean <- TrainClean[, !(TrainClean[125,]=="")]
+dim(TrainClean)
+```
+
+The choice for using row 125 to identify the columns to be removed is arbitrary, as other rows give the same result. Evidently, this clean up reduced the number of variables from 160 to 53. 
+
+# Model building
+
+We now split this TrainClean data set into a training - and testing set using the variable **classe**.
+
+```{r}
+library(caret)
+inTrainClean <- createDataPartition(y=TrainClean$classe, p=0.75, list=FALSE)
+training <- TrainClean[inTrainClean,]
+testing <- TrainClean[-inTrainClean,]
+dim(training); dim(testing)
+```
+
+With the training set we create a **random forest** prediction model with **classe* as output variable and all other 52 variables as predictors.
+
+```{r}
+library(randomForest)
+modFit <- randomForest(classe ~., ntree=50, data=training, importance=TRUE)
+```
+
+To assess how well this decision tree model performs, let's consider first the **in-sample** error. To that end we 
+apply the model to the training set.
+
+```{r}
+predictions <- predict(modFit, newdata=training)
+confusionMatrix(predictions, training$classe)
+```
+
+With an **accuracy** of 1 we can "hardly" do better. Hence, the model performs perfect on the training set, but what about the testing set? 
+The performance on the testing set tells us something about the **out-of-sample** error. Therefore
+
+```{r}
+predictions <- predict(modFit, newdata=testing)
+confusionMatrix(predictions, testing$classe)
+```
+
+Clearly, our random forest prediction model also performs "almost" flawless on the testing set with an **out-of-sample** error less than **1%**.
+
+# Predictions on the raw testing set
+
+Finally, let's apply the model to the TestRaw data set and predict the outcome classes.
+
+```{r}
+predictions <- predict(modFit, newdata=TestRaw)
+predictions
+```
